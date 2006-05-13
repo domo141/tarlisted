@@ -1,0 +1,163 @@
+
+NAME
+
+  tarlisted
+
+
+SYNOPSIS
+
+  tarlisted [-mVh] [-i infile] [-o outfile]
+
+
+DESCRIPTION
+
+  Tarlisted takes lines of text as an input and creates tar archive
+  based on that information. 
+
+  Each line contains permission, user, group and pathname that are to
+  be written in header part of the tar entry. In addition to that, at
+  the end of line the syntax varies depending the file type archived.
+  For example in case of reqular files the filename where file content
+  is read is added. Tarlisted creates POSIX.1-1998 tar file format 
+  (only) and can archive all the (seven) file types it supports.
+
+
+OPTIONS
+
+   -n: Just check tarlist contents, not doing anything else.
+   -V: Verbose output.
+   -i and -o: defines input and output files, instead of stdin/stdout.
+   -h: help
+
+  The default mode is to act as a filter; take description file from
+  stdin and write to stdout. This is the most common usage; some script
+  provides the content and output is filtered, either to gzip/bzip2 or
+  to tar command to be extract elsewhere (even to inside chroot...).
+
+
+SYNTAX
+
+  Files and directories to be archived are read from input file,
+  each line in one of the formats:
+
+    <perm> <uname> <gname> . <tarfilename> <sysfilename>
+    <perm> <uname> <gname> . <tarfilename> /
+     ---   <uname> <gname> . <tarfilename> -> <symlink>
+     ===   <uname> <gname> . <tarfilename> => <hardlink>
+    <perm> <uname> <gname> . <tarfilename> // c <devmajor> <devminor>
+    <perm> <uname> <gname> . <tarfilename> // b <devmajor> <devminor>
+    <perm> <uname> <gname> . <tarfilename> // fifo
+
+  Where:
+        perm:         file permission in octal number format.
+        uname:        name of the user this file is owned.
+        gname:        name of the group this file belongs.
+        .:            future extension for time...
+        tarfilename:  name of the file that is written to the tar archive.
+
+        sysfilename:  file to be added from filesystem.
+        /:            add directory to the tar archive.
+        ->:           add tarfilename as symbolic link to given name.
+        =>:           add tarfilename as hard link to given name.
+        // c ...:     add character device to the tar archive.
+        // b ...:     add block device to the tar archive.
+        // fifo:      add fifo (named pipe) file to the tar archive.
+
+  Backspace "\" must be used when adding [back]spaces to filenames.
+  Pipeline output to gzip/bzip2 (| gzip -c > outfile.tar.gz) for compression.
+
+  Input file may also have lines
+    tarlisted file format 2
+    tarlisted file end
+  The first one can be used to request strict format check. The second
+  is added for symmetry.
+
+  Output format is POSIX Unix Standard TAR (ustar, IEEE Std 1003.1-1988)
+
+
+EXAMPLES
+
+  First, just one that shows all supported file types.
+
+  $ ./tarlisted -o test.tar << EOF
+  tarlisted file format 2
+   755 root root   . /usr/bin/tarlisted ./tarlisted
+   700 too  too    . /tmp/path/to/nowhr /
+   --- unski unski . /one\ symlink -> /where/ever
+   === wheel wheel . /one\ hrdlink => /bin/echo
+   666 root  root  . /dev/zero  // c 1 5
+   640 root  disk  . /dev/loop0 // b 7 0
+   600 root  root  . /dev/initctl // fifo
+  tarlisted file end
+  EOF
+
+  The above created test.tar with content: 
+
+  $ tar tvf test.tar
+  -rwxr-xr-x root/root  12453 2006-04-25 00:41:48 usr/bin/tarlisted
+  drwx------ too/too        0 2006-04-25 00:42:53 tmp/path/to/nowhr
+  lrwxrwxrwx unski/unski    0 2006-04-25 00:42:53 one symlink -> /where/ever
+  hrwxrwxrwx wheel/wheel    0 2006-04-25 00:42:53 one hrdlink link to /bin/echo
+  crw-rw-rw- root/root    1,5 2006-04-25 00:42:53 dev/zero
+  brw-r----- root/disk    7,0 2006-04-25 00:42:53 dev/loop0
+  prw------- root/root      0 2006-04-25 00:42:53 dev/initctl
+
+  Another to install perl4 (compiled from 4.0.36) (using installed tarlisted).
+
+  $ PREFIX=/usr
+  $ tarlisted << EOF | tar -C $PREFIX -xvf -
+   755 root root . bin/perl4 src/perl
+   644 root root . man/man1/perl4.1 src/perl.man
+  EOF
+
+  or, the above with same result:
+
+  $ PREFIX=/usr
+  $ tarlisted << EOF | tar -C / -xvf -
+   755 root root . $PREFIX/bin/perl4 src/perl
+   644 root root . $PREFIX/man/man1/perl4.1 src/perl.man
+  EOF
+
+
+  Finally, compress on the fly with bzip2
+
+  $ echo 755 root root . /usr/bin/tarlisted tarlisted | ./tarlisted \
+       | bzip2 -c > tl.tgz
+
+
+CAVEATS
+
+  When using tarlisted in a pipeline before some other command and its
+  execution fails for some reason, the return code of tarlisted is
+  usually lost. When using bash, the failure can be caught by using
+  the command:
+    set -eo pipefail
+
+
+AUTHOR
+  written by Tomi Ollila
+
+
+COPYRIGHT
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+ 
+    1. Redistributions of source code must retain the above copyright
+       notice, this list of conditions and the following disclaimer.
+    2. Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in
+       the documentation and/or other materials provided with the
+       distribution.
+    4. The names of the authors may not be used to endorse or promote
+       products derived from this software without specific prior
+       written permission.
+ 
+  THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+  IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+   
+
+SEE ALSO
+  tar(1), star(1) tar(5)
