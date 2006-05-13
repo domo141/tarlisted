@@ -7,7 +7,7 @@
  #	    All rights reserved
  #
  # Created: Thu Apr 20 19:59:29 EEST 2006 too
- # Last modified: Sun Apr 23 12:42:56 EEST 2006 too
+ # Last modified: Sat May 13 19:56:45 EEST 2006 too
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -39,10 +39,10 @@
  #*/
 #endif
 
-#define VERSION "2.0"
+#define VERSION "2.1"
 
 /* example content, run
-   sed -n 's/#[:]#//p' <thisfile> | ./tarlisted -V -o test.tar
+   sed -n 's/#[:]#//p' <thisfile> | ./tarlisted -V -o test.tar.gz '|' gzip -c
 
 #:# tarlisted file format 2
 #:# 755 root root   . /usr/bin/tarlisted ./tarlisted
@@ -69,6 +69,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include <pwd.h>
 #include <grp.h>
@@ -198,6 +199,26 @@ static FILE * xfopen(const char * path, const char * mode)
     if (fh == null)
 	xerrf("opening %s failed:", path);
     return fh;
+}
+
+static void xpipe(int fds[2])
+{
+    if (pipe(fds) < 0)
+	xerrf("pipe:");
+}
+
+static int xfork(void)
+{
+    int r;
+    if ( (r = fork()) < 0)
+	xerrf("fork:");
+    return r;
+}
+
+static void movefd(int o, int n)
+{
+    if (o == n) return;
+    dup2(o, n); close(o);
 }
 
 /* -- -- */
@@ -355,7 +376,7 @@ static int writedata(int fd, char * buf, int len)
 /* --- --- */
 
 
-static const char * needarg(const char ** arg, const char * emsg)
+static const char * needarg(char ** arg, const char * emsg)
 {
     if (*arg == null)
 	xerrf(emsg);
@@ -685,8 +706,54 @@ void ustar_add(char * name, int mode, int uid, int gid, off_t fsize,
 
 /* --- --- */
 
+static int run_ppcmd(char ** argv, int out_fd)
+{
+    int fds[2];
 
-int main(int argc UU, const char * argv[])
+    xpipe(fds);
+
+    if (xfork() == 0) {
+	/* child */
+	close(fds[1]);
+	movefd(out_fd, 1);
+	movefd(fds[0], 0);
+
+	execvp(argv[0], argv);
+	xerrf("execvp:");
+    }
+    /* parent */
+
+    return fds[1];
+}
+
+void dowait(void) GCCATTR_NORETURN;
+void dowait(void)
+{
+    int status, pid = wait(&status);
+    if (pid < 0)
+	xerrf("wait:");
+    if (WIFEXITED(status)) {
+	status = WEXITSTATUS(status);
+	if (status == 0)
+	    exit(0);
+	xerrf("Postprocess command exited with value %d\n", status);
+    }
+    if (WIFSIGNALED(status))
+	xerrf("Postprocess command exited by signal %d\n", WTERMSIG(status));
+
+    xerrf("Postprocess command exited by unknown staus code %d\n", status);
+}
+
+
+void sigchld_handler(int sig UU)
+{
+    dowait();
+}
+
+/* --- --- */
+
+
+int main(int argc UU, char * argv[])
 {
     char buf[4096];
     struct fis fis;
@@ -694,6 +761,7 @@ int main(int argc UU, const char * argv[])
     const char * ifname = null;
     const char * ofname = null;
     int out_fd, ifile_fd;
+    char ** ppcmdp = null;
     int n;
     time_t starttime = time(null);
     time_t ttime;
@@ -720,6 +788,11 @@ int main(int argc UU, const char * argv[])
 		usage(false);
 	    }}
 
+    if (argv[0] && ( argv[0][0] != '|' || argv[0][1] != '\0' ))
+	errf("%s: unknown argument\n", argv[0]);
+    else
+	ppcmdp = argv + 1;
+
     if (G.opt_dry_run)
 	out_fd = -1;
     else {
@@ -727,6 +800,11 @@ int main(int argc UU, const char * argv[])
 	    out_fd = xopen(ofname, O_WRONLY|O_CREAT|O_TRUNC, 0644);
 	else
 	    out_fd = 1;
+    }
+
+    if (ppcmdp && ! G.opt_dry_run) {
+	signal(SIGCHLD, sigchld_handler);
+	out_fd = run_ppcmd(ppcmdp, out_fd);
     }
 
     if (ifname)
@@ -773,8 +851,14 @@ int main(int argc UU, const char * argv[])
 	    ifile_fd = -1;
 	}
     }
-    if (out_fd >= 0)
+    if (out_fd >= 0) {
 	writezero(out_fd, 10240);
+	close(out_fd);
+    }
+    if (ppcmdp) {
+	signal(SIGCHLD, SIG_DFL);
+	dowait();
+    }
 
     return 0;
 }
