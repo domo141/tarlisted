@@ -7,8 +7,8 @@ tarlisted: tarlisted.c
 	sh tarlisted.c
 
 test:	tarlisted
-	sed -n 's/#[:]#//p' tarlisted.c \
-		| ./tarlisted -V -o test.tar.gz '|' gzip -c
+	sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -zo test.tar.gz
+#FIXME more tests.
 
 chkprefix: ALWAYS
 	@[ x"$(PREFIX)" != x ] \
@@ -52,7 +52,7 @@ SvnVersion: ALWAYS
 	svnversion . > $@
 
 tgz: tarlisted SvnVersion_unmodified SvnLog
-	sed -n '/^targz.sh:/,/^ *$$/ p' Makefile | tail +3 | sh -ve #-nv
+	sed -n '/^targz.sh:/,/^ *$$/ p' Makefile | tail -n +3 | sh -ve #-nv
 
 clean: ALWAYS
 	rm -f tarlisted Svn[LV]* *~ 
@@ -66,13 +66,15 @@ targz.sh:
 	for n in tarlisted.c tarlisted.1 Makefile SvnLog
 	do
 		echo 644 root root . tarlisted-$version/$n $n
-	done | ./tarlisted -V -o tarlisted-$version.tar.gz '|' gzip -c 
+	done | ./tarlisted -V -zo tarlisted-$version.tar.gz
+	set +e
+	echo Created tarlisted-$version.tar.gz
 	exit 0
 
 
 # Every now and then I need to test some subversion functionality...
 tmprepo: clean
-	sed -n '/^tmprepo.sh:/,/^ *$$/ p' Makefile | tail +3 | sh -ve #-nv
+	sed -n '/^tmprepo.sh:/,/^ *$$/ p' Makefile | tail -n +3 | sh -ve #-nv
 
 tmprepo.sh:
 	exit 1 # this target is not to be run.

@@ -7,7 +7,7 @@
  #	    All rights reserved
  #
  # Created: Thu Apr 20 19:59:29 EEST 2006 too
- # Last modified: Sat May 13 19:56:45 EEST 2006 too
+ # Last modified: Wed May 17 23:25:37 EEST 2006 too
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -39,7 +39,7 @@
  #*/
 #endif
 
-#define VERSION "2.1"
+#define VERSION "2.2"
 
 /* example content, run
    sed -n 's/#[:]#//p' <thisfile> | ./tarlisted -V -o test.tar.gz '|' gzip -c
@@ -376,7 +376,7 @@ static int writedata(int fd, char * buf, int len)
 /* --- --- */
 
 
-static const char * needarg(char ** arg, const char * emsg)
+static const char * needarg(const char ** arg, const char * emsg)
 {
     if (*arg == null)
 	xerrf(emsg);
@@ -421,12 +421,15 @@ static void usage(bool help)
     if (help)
 	fprintf(fh, "\nTarlisted version " VERSION "\n");
 
-    fprintf(fh, "\nUsage: %s [-nVh] [-i infile] [-o outfile]\n\n"
-	    "\t-n: Just check tarlist contents, not doing anything else.\n"
-	    "\t-V: Verbose output.\n"
-	    "\t-i and -o: defines input and output files, instead of stdin/stdout.\n"
-	    "\t-h: help\n"
-	    "\n", G.progname);
+    fprintf(fh, "\nUsage: %s [-nVhzj] [-i infile] [-o outfile] [| cmd [args]]\n\n"
+	 "\t-n: just check tarlist contents, not doing anything else\n"
+	 "\t-V: verbose output\n"
+	 "\t-i: input file, instead of stdin\n"
+	 "\t-o: output file (- = stdout); required if '|' not used.\n"
+	 "\t-z: compress archive with gzip (mutually exclusive with -j and '|')\n"
+	 "\t-j: compress archive with bzip2 (mutually exclusive with -z and '|')\n"
+	 "\t-h: help\n"
+	 "\n", G.progname);
 
     if (help) {
 	fprintf(fh, helptxt);
@@ -706,7 +709,7 @@ void ustar_add(char * name, int mode, int uid, int gid, off_t fsize,
 
 /* --- --- */
 
-static int run_ppcmd(char ** argv, int out_fd)
+static int run_ppcmd(const char ** argv, int out_fd)
 {
     int fds[2];
 
@@ -718,7 +721,7 @@ static int run_ppcmd(char ** argv, int out_fd)
 	movefd(out_fd, 1);
 	movefd(fds[0], 0);
 
-	execvp(argv[0], argv);
+	execvp(argv[0], argv); /*well, does execve() possibly alter arg content?*/
 	xerrf("execvp:");
     }
     /* parent */
@@ -753,7 +756,17 @@ void sigchld_handler(int sig UU)
 /* --- --- */
 
 
-int main(int argc UU, char * argv[])
+const char * gzipline[] =  { "gzip",  "-c", null };
+const char * bzip2line[] = { "bzip2", "-c", null };
+
+void setppcmdp(const char *** ppcmdpp, const char ** p)
+{
+    if (*ppcmdpp)
+	xerrf("Options -z, -j and '|' are mutually exclusive\n");
+    *ppcmdpp = p;
+}
+
+int main(int argc UU, const char * argv[])
 {
     char buf[4096];
     struct fis fis;
@@ -761,13 +774,16 @@ int main(int argc UU, char * argv[])
     const char * ifname = null;
     const char * ofname = null;
     int out_fd, ifile_fd;
-    char ** ppcmdp = null;
+    const char ** ppcmdp = null;
     int n;
     time_t starttime = time(null);
     time_t ttime;
 
     init_G(argv[0], stdin);
     argv++;
+
+    if (argv[0] == 0)
+	usage(false);
 
     getugids(&uid, &gid);
 
@@ -782,21 +798,26 @@ int main(int argc UU, char * argv[])
 	    case 'V': G.opt_verbose = true; break;
 	    case 'i': ifname = needarg(argv++, "No filename for  -i\n"); break;
 	    case 'o': ofname = needarg(argv++, "No filename for  -o\n"); break;
+	    case 'z': setppcmdp(&ppcmdp, gzipline); break;
+	    case 'j': setppcmdp(&ppcmdp, bzip2line); break;
 	    case 'h': usage(true); break;
 	    default:
 		errf("%c: unknown option\n", arg[i]);
 		usage(false);
 	    }}
 
-    if (argv[0] && ( argv[0][0] != '|' || argv[0][1] != '\0' ))
-	errf("%s: unknown argument\n", argv[0]);
-    else
-	ppcmdp = argv + 1;
+    if (argv[0]) {
+	if ( argv[0][0] != '|' || argv[0][1] != '\0' )
+	    errf("%s: unknown argument\n", argv[0]);
+	else
+	    setppcmdp(&ppcmdp, argv + 1);
+    } else if (ofname == null)
+	xerrf("Option -o reguired if postprocessor command (with '|') not used\n");
 
     if (G.opt_dry_run)
 	out_fd = -1;
     else {
-	if (ofname)
+	if (ofname && (ofname[0] != '-' || ofname[1] != '\0'))
 	    out_fd = xopen(ofname, O_WRONLY|O_CREAT|O_TRUNC, 0644);
 	else
 	    out_fd = 1;

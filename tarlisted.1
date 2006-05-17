@@ -23,7 +23,7 @@ tarlisted \- Create tar archive based on description list contents
 
 .SH SYNOPSIS
 .B tarlisted 
-.I [-nVh] [-i infile] [-o outfile] [| ppcmd [args]]
+.I [-nVhzj] [-i infile] [-o outfile] [| ppcmd [args]]
 .br
 
 .SH DESCRIPTION
@@ -39,32 +39,33 @@ is read is added. Tarlisted creates POSIX.1-1998 tar file format
 (only) and can archive all the (seven) file types it supports.
 
 .SH OPTIONS
-
+.TP
 .B -\fIn\fP
 Just check tarlist contents, not doing anything else.
 .TP
-.B -\fIV\fP:
+.B -\fIV\fP
 Verbose output.
 .TP
-.B -\fIi\fP and -\fIo\fP: 
-defines input and output files, instead of stdin/stdout.
+.B -\fIi\fP
+Defines input file, instead of stdin.
 .TP
-.B -\fIh\fP: 
+.B -\fIo\fP
+Defines output files, instead of stdout. Required if '|' not used.
+Giving - will use stdout anyway (if there is need for it).
+.TP
+.B -\fIz\fP
+Compresses archive with gzip. Mutually exclusive with -j and '|'.
+.TP
+.B -\fIj\fP
+Compresses archive with gzip. Mutually exclusive with -z and '|'.
+.TP
+.B -\fIh\fP
 help
 .TP
 .B \fI| ppcmd [args]\fP
-Internal piping to postprocess command. Output will be processed
-through this program before writing to output. Also, if postprocess
+Internal piping to postprocess command. Archive output will be sent 
+to this program for further use. Also, if postprocess
 command returns nonzero value, tarlisted will exit with value 1.
-.PP 
-The default mode is to act as a filter; take description file from
-stdin and write to stdout. This used to be the most common usage;
-some script provides the content and output is filtered, either to
-gzip/bzip2 or to tar command to be extract elsewhere (even to inside
-chroot...). This still holds when piping to tar for extraction (preferably
-using internal piping support), but when (internally) piping to gzip/bzip2
-the -\fIo\fP is usually used. So not making -o mandatory (and with -
-output to stdout) is there for historical reasons.
 
 .SH SYNTAX
 
@@ -136,7 +137,7 @@ The above created test.tar with content:
 Another to install perl4 (compiled from 4.0.36) (using installed tarlisted).
 
   $ PREFIX=/usr
-  $ tarlisted << EOF | tar -C $PREFIX -xvf -
+  $ tarlisted '|' tar -C $PREFIX -xvf - << EOF 
    755 root root . bin/perl4 src/perl
    644 root root . man/man1/perl4.1 src/perl.man
   EOF
@@ -144,7 +145,7 @@ Another to install perl4 (compiled from 4.0.36) (using installed tarlisted).
   or, the above with same result:
 
   $ PREFIX=/usr
-  $ tarlisted << EOF | tar -C / -xvf -
+  $ tarlisted '|' tar -C / -xvf - << EOF 
    755 root root . $PREFIX/bin/perl4 src/perl
    644 root root . $PREFIX/man/man1/perl4.1 src/perl.man
   EOF
@@ -154,11 +155,18 @@ Finally, compress on the fly with bzip2
   $ echo 755 root root . /usr/bin/tarlisted tarlisted \\
     | ./tarlisted -o tl.tar.bz2 '|' bzip -c
 
+Same with tarlisted 2.2 (or newer)
+
+  $ echo 755 root root . /usr/bin/tarlisted tarlisted \\
+    | ./tarlisted -jo tl.tar.bz2
+
 .SH CAVEAT
 
 Remember to escape | from shell when using the internal pipeline
 feature of tarlisted. There are three ways to enter that on the
-command line: '|', "|" and \\|.
+command line: '|', "|" and \\|. Now there is less chance for that
+since -o is seldom used in this case -- tarlisted will not work
+without -o now if '|' is not used.
 
 .SH TODO
 
@@ -192,7 +200,7 @@ written by Tomi Ollila
    
 
 .SH SEE ALSO
-.PD O
+.PD 0
 \fBtar\fP(1),
 \fBstar\fP(1),
 \fBtar\fP(5)
