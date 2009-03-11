@@ -59,6 +59,9 @@ Compresses archive with gzip. Mutually exclusive with -j and '|'.
 .B -\fIj\fP
 Compresses archive with gzip. Mutually exclusive with -z and '|'.
 .TP
+.B -\fIM\fP
+Creates md5 checksum output instead of tar.
+.TP
 .B -\fIh\fP
 help
 .TP
@@ -133,6 +136,14 @@ The above created test.tar with content:
   crw-rw-rw- root/root    1,5 2006-04-25 00:42:53 dev/zero
   brw-r----- root/disk    7,0 2006-04-25 00:42:53 dev/loop0
   prw------- root/root      0 2006-04-25 00:42:53 dev/initctl
+
+If -M were given on above command line, the output would look like:
+
+  $ cat test.tar
+  b4118203da5d3829c62e468b67972615  usr/bin/tarlisted
+
+I.e. the only file in tarlist was md5summed for output.
+(I suggest changing ending to something like .md5sum instead)
 
 Another to install perl4 (compiled from 4.0.36) (using installed tarlisted).
 

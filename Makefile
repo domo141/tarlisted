@@ -3,11 +3,36 @@
 
 all:	tarlisted
 
-tarlisted: tarlisted.c
-	sh tarlisted.c
+CC=gcc
+
+CFLAGS=	-O2
+LFLAGS=	-s
+
+WARN0=	-Wall -Wstrict-prototypes -pedantic -Wno-long-long
+WARN1=	$(WARN0) -Wcast-align -Wpointer-arith  # -Wfloat-equal #-Werror
+WARN=	$(WARN1) -W -Wwrite-strings -Wcast-qual -Wshadow  # -Wconversion
+
+LFOPT=	-DLARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
+
+TLOBJS=	tarlisted.o md5.o
+
+tarlisted: conf.h $(TLOBJS)
+	$(CC) $(LFLAGS) $(WARN) -o $@ $(TLOBJS) $(LFOPT)
+
+
+.c.o:
+	$(CC) $(CFLAGS) $(WARN) -c -o $@ $< $(LFOPT)
+
+md5.o: md5.h conf.h 
+
+
+conf.h:	genconf.sh Makefile
+	sh genconf.sh $(CC) $(LFOPT)
 
 test:	tarlisted
 	sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -zo test.tar.gz
+	sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -Mo test.md5sum
+
 #FIXME more tests.
 
 chkprefix: ALWAYS
@@ -34,28 +59,18 @@ itl: 644 root root . %PREFIX/man/man1/tarlisted.1 tarlisted.1
 itl: tarlisted file end
 
 
-SvnLog: ALWAYS #SvnVersion_unmodified #ALWAYS #$(FILES)
-	( echo "# Created using svn -v log" | tr '\012' ' ';\
-	  echo "| sed -n -e '\$${x;p;x;p;q};/^--*\$$/{x;/./p;d};x;p'" ;\
-	  echo '# This file is not version controlled' ;\
-	  echo ;\
-	  svn -v log | sed -n -e '$${x;p;x;p;q};/^--*$$/{x;/./p;d};x;p' \
-	) > $@
+GitLog: ALWAYS #SvnVersion_unmodified #ALWAYS #$(FILES)
+	git log --name-status > $@
 
-SvnVersion_unmodified: SvnVersion
-	@[ x"`sed 's/[0-9]*//' SvnVersion`" = x ] || \
-	  {  echo Version number `cat SvnVersion` not single, unmodified.; \
-	     exit 1; } # exit 0 when testing, exit 1 when not.
-
-SvnVersion: ALWAYS
-	svn up
-	svnversion . > $@
-
-tgz: tarlisted SvnVersion_unmodified SvnLog
+targz: tarlisted GitLog
 	sed -n '/^targz.sh:/,/^ *$$/ p' Makefile | tail -n +3 | sh -ve #-nv
 
+bindeb: tarlisted GitLog
+	sed -n '/^bindeb.sh:/,/^ *$$/ p' Makefile | tail -n +3 | sh -ve #-nv
+
+
 clean: ALWAYS
-	rm -f tarlisted Svn[LV]* *~ 
+	rm -f tarlisted *.o conf.h test.* GitLog *~ 
 
 distclean: clean
 
@@ -63,7 +78,7 @@ distclean: clean
 targz.sh:
 	exit 1 # this target is not to be run.
 	version=`sed -n 's/^#define VERSION "//; T; s/".*//p; q;' tarlisted.c`
-	for n in tarlisted.c tarlisted.1 Makefile SvnLog
+	for n in tarlisted.c md5.c md5.h genconf.sh tarlisted.1 Makefile GitLog
 	do
 		echo 644 root root . tarlisted-$version/$n $n
 	done | ./tarlisted -V -zo tarlisted-$version.tar.gz
@@ -71,28 +86,8 @@ targz.sh:
 	echo Created tarlisted-$version.tar.gz
 	exit 0
 
-
-# Every now and then I need to test some subversion functionality...
-tmprepo: clean
-	sed -n '/^tmprepo.sh:/,/^ *$$/ p' Makefile | tail -n +3 | sh -ve #-nv
-
-tmprepo.sh:
+bindeb.sh:
 	exit 1 # this target is not to be run.
-	ts=`date +%Y%m%d-%H%M`
-	pwd=`pwd`
-	exlfile=../excl.$$
-	trd=tmprepo-$ts
-	rm -rf $trd
-	mkdir $trd $trd/R
-	trap 'rm -f $exlfile' 0
-#	#svn st --no-ignore | sed -ne 's/[?I] *//; T; s/.*/"&"/p' > $exlfile
-	svn st --no-ignore | sed -ne 's/[?I] *//p' > $exlfile
-	svnadmin create $trd/R
-	svn co file://$pwd/$trd/R $trd/w
-	gtar --exclude .svn -X $exlfile -cf - * | tar -C $trd/w -xvf -
-	(cd $trd/w; svn add .; svn commit -m 'Added files.')
-	: ignore warning: "''" ... above.
-	set +v
-	echo Temp repository is located at ./$trd/w
+	echo to be done
 
 #EOF
