@@ -16,14 +16,14 @@
 .\"      products derived from this software without specific prior
 .\"      written permission.
 
-.TH tarlisted 1 "May 13, 2006"
+.TH tarlisted 1 "Mar 12, 2009"
 
 .SH NAME
 tarlisted \- Create tar archive based on description list contents
 
 .SH SYNOPSIS
 .B tarlisted 
-.I [-nVhzj] [-i infile] [-o outfile] [| ppcmd [args]]
+.I [-nVhzj] [-i infile] [(-o|-a) outfile] [| ppcmd [args]]
 .br
 
 .SH DESCRIPTION
@@ -50,8 +50,11 @@ Verbose output.
 Defines input file, instead of stdin.
 .TP
 .B -\fIo\fP
-Defines output files, instead of stdout. Required if '|' not used.
+Defines output file, instead of stdout. Required if '|' not used.
 Giving - will use stdout anyway (if there is need for it).
+.TP
+.B -\fIa\fP
+Appends to output file. No compression nor postprosessing appicable.
 .TP
 .B -\fIz\fP
 Compresses archive with gzip. Mutually exclusive with -j and '|'.
@@ -109,6 +112,11 @@ The first one can be used to request strict format check. The second
 is added for symmetry.
 
 Output format is POSIX Unix Standard TAR (ustar, IEEE Std 1003.1-1988)
+
+.SH EXIT VALUE
+
+tarlisted exits with 0 if everything goes ok. On failure it might exit
+with nonzero value.
 
 .SH EXAMPLES
 
@@ -181,7 +189,7 @@ without -o now if '|' is not used.
 
 .SH TODO
 
-Add features from latest POSIX tar spesifications to 
+Add features from latest POSIX tar specifications to 
 support long filenames when necessary. \" option -x to enable
 
 Plan and implement "modification time" setting.

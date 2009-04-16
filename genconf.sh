@@ -8,7 +8,7 @@
 #	    All rights reserved
 #
 # Created: Tue Mar 27 17:23:11 EEST 2007 too
-# Last modified: Wed Mar 04 15:17:35 EET 2009 too
+# Last modified: Thu 16 Apr 2009 17:25:51 EEST too
 
 # This script uses c compiler generated object files to figure
 # out variable type sizes and machine endianess.
@@ -25,6 +25,10 @@
 
 # This particular script (genconf.sh) is public domain, use it as you wish.
 # Standard disclaimers apply, no WARRANTY and such.
+
+# use consistent locale -- for tr(1), at least...
+LC_ALL=C LANG=C
+export LC_ALL LANG
 
 e2 () { echo "$@" >&2; }
 ee () { e2 "$@"; exit 1; }

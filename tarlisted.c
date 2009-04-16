@@ -7,7 +7,7 @@
  #	    All rights reserved
  #
  # Created: Thu Apr 20 19:59:29 EEST 2006 too
- # Last modified: Wed Mar 11 17:38:40 EET 2009 too
+ # Last modified: Thu 16 Apr 2009 17:26:54 EEST too
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -39,7 +39,7 @@
  #*/
 #endif
 
-#define VERSION "2.5"
+#define VERSION "2.72"
 
 /* example content, run
    sed -n 's/#[:]#//p' <thisfile> | ./tarlisted -V -o test.tar.gz '|' gzip -c
@@ -133,12 +133,14 @@ typedef enum { false = 0, true = 1 } bool; typedef char bool8;
 struct {
     const char * progname;
     FILE * stream;
+    off_t bytes_written;
     int prevchar;
     int lineno;
     int exitvalue;
     bool8 opt_dry_run;
     bool8 opt_verbose;
     bool8 opt_md5sum;
+    char zerobuf[1024];
 } G;
 
 void init_G(const char * progname, FILE * stream)
@@ -220,6 +222,12 @@ static FILE * xfopen(const char * path, const char * mode)
     if (fh == null)
 	xerrf("opening %s failed:", path);
     return fh;
+}
+
+static void xlseek(int fd, off_t offset, int whence)
+{
+    if (lseek(fd, offset, whence) < 0)
+	xerrf("lseek failed:");
 }
 
 #ifndef WIN32
@@ -364,27 +372,29 @@ int toktest()
 
 /* --- --- */
 
-static unsigned long bytes_written = 0;
+static void writezero512(int fd)
+{
+    if (write(fd, G.zerobuf, 512) != 512)
+	xerrf("writa failed:");
+    G.bytes_written += 512;
+}
 
 /* static void writezero(int fd, int(*writefunc)(int, char *, int)) */
 static void writezero(int fd, int byteboundary)
 {
-    char buf[1024];
     unsigned int i, nw;
 
-    memset(buf, 0, sizeof buf);
-
-    i = bytes_written % byteboundary;
+    i = G.bytes_written % byteboundary;
     if (i) {
 	nw = byteboundary - i;
 
 	while (nw) {
-	    i = (nw > sizeof buf? sizeof buf: nw);
+	    i = (nw > sizeof G.zerobuf? sizeof G.zerobuf: nw);
 	    /* writefunc(fd, buf, i); */
-	    if (write(fd, buf, i) != U2S(i, int,,) )
+	    if (write(fd, G.zerobuf, i) != U2S(i, int,,) )
 		xerrf("write failed:");
 	    nw -= i;
-	    bytes_written += i;
+	    G.bytes_written += i;
 	}
     }
 }
@@ -393,7 +403,7 @@ static int writedata(int fd, char * buf, int len)
 {
     len = write(fd, buf, len);
     if (len > 0)
-	bytes_written += len;
+	G.bytes_written += len;
     return len;
 }
 
@@ -407,7 +417,7 @@ static const char * needarg(const char ** arg, const char * emsg)
     return *arg;
 }
 
-static const char helptxt[] =
+static const char helptxt1[] =
     "  Files and directories to be archived are read from input file,\n"
     "  each line in one of the formats:\n\n"
     "  <perm> <uname> <gname> . <tarfilename> <sysfilename>\n"
@@ -417,7 +427,8 @@ static const char helptxt[] =
     "  <perm> <uname> <gname> . <tarfilename> // c <devmajor> <devminor>\n"
     "  <perm> <uname> <gname> . <tarfilename> // b <devmajor> <devminor>\n"
     "  <perm> <uname> <gname> . <tarfilename> // fifo\n\n"
-    "  Where:\n"
+    "  Where:\n";
+static const char helptxt2[] =
     "\tperm:         file permission in octal number format.\n"
     "\tuname:        name of the user this file is owned.\n"
     "\tgname:        name of the group this file belongs.\n"
@@ -426,7 +437,8 @@ static const char helptxt[] =
     "\tsysfilename:  file to be added from filesystem.\n"
     "\t/:            add directory to the tar archive.\n"
     "\t->:           add tarfilename as symbolic link to given name.\n"
-    "\t=>:           add tarfilename as hard link to given name.\n"
+    "\t=>:           add tarfilename as hard link to given name.\n";
+static const char helptxt3[] =
     "\t// c ...:     add character device to the tar archive.\n"
     "\t// b ...:     add block device to the tar archive.\n"
     "\t// fifo:      add fifo (named pipe) file to the tar archive.\n"
@@ -447,26 +459,31 @@ static void usage(bool help)
 
     fprintf(fh, "\n"
 #ifndef WIN32
-	 "Usage: %s [-nVhzj] [-i infile] [-o outfile] [| cmd [args]]\n\n"
+	    "Usage: %s [-nVzj] [-C dir] [-i infile] [(-o|-a) outfile] [| cmd [args]]\n\n"
 #else
-	 "Usage: %s [-nVh] [-i infile] -o outfile\n\n"
+	    "Usage: %s [-nVh] [-C dir] [-i infile] (-o|-a) outfile\n\n"
 #endif
-	 "\t-n: just check tarlist contents, not doing anything else\n"
-	 "\t-V: verbose output\n"
-	 "\t-i: input file, instead of stdin\n"
+	    , G.progname);
+    fputs("\t-n: just check tarlist contents, not doing anything else\n"
+	  "\t-V: verbose output\n"
+	  "\t-C: change to directory for input -- does not affect output\n"
+	  "\t-i: input file, instead of stdin\n"
 #ifndef WIN32
-	 "\t-o: output file (- = stdout); required if '|' not used\n"
-	 "\t-z: compress archive with gzip (mutually exclusive with -j and '|')\n"
-	 "\t-j: compress archive with bzip2 (mutually exclusive with -z and '|')\n"
+	  "\t-o: output file (- = stdout); required if '|' not used\n"
+	  "\t-a: append to output file\n"
+	  "\t-z: compress archive with gzip (mutually exclusive with -j and '|')\n"
+	  "\t-j: compress archive with bzip2 (mutually exclusive with -z and '|')\n"
 #else
-	 "\t-o: output file (- = stdout)\n"
+	  "\t-o: output file (- = stdout)\n"
 #endif
-	 "\t-M: create md5 checksum file instead of tar file\n"
-	 "\t-h: help\n"
-	 "\n", G.progname);
+	  "\t-M: create md5 checksum file instead of tar file\n"
+	  "\t-h: help\n"
+	  "\n", fh);
 
     if (help) {
-	fprintf(fh, helptxt);
+	fputs(helptxt1, fh);
+	fputs(helptxt2, fh);
+	fputs(helptxt3, fh);
 	exit(0);
     }
     exit(1);
@@ -637,6 +654,17 @@ int readfileinfo(char buf[4096], struct fis * fis)
 }
 
 /* --- --- */
+
+off_t readoctal(char * str)
+{
+    off_t val = 0;
+    while (*str) {
+	if (*str >= '0' && *str <= '7')
+	    val = (val << 3) + (*str - '0');
+	str++;
+    }
+    return val;
+}
 
 /* Unix Standard TAR format */
 
@@ -846,6 +874,47 @@ void setppcmdp(const char *** ppcmdpp, const char ** p)
 
 #endif /* not WIN32 */
 
+void seektolast(int fd)
+{
+    while (1)
+    {
+	char buf[4096];
+	int l = read(fd, buf, sizeof buf);
+	int offset = 0;
+
+	if (l < 512)
+	    xerrf("tarfile ended prematurely\n");
+
+	while (1) {
+	    struct header_posix_ustar * tarhdr
+		= (struct header_posix_ustar *)(buf + offset);
+	    if (tarhdr->name[0] == 0) {
+		xlseek(fd, offset - l, SEEK_CUR);
+		G.bytes_written += offset;
+		return;
+	    }
+	    if (strcmp(tarhdr->magic, "ustar") != 0
+		|| tarhdr->version[0] != '0' || tarhdr->version[1] != '0')
+		xerrf("One archive member not 'ustar' version '00' format\n");
+
+	    offset += ((readoctal(tarhdr->size) + 511) & ~511) + 512;
+#if 0
+	    printf("%p %d %s %lld %s\n", tarhdr, offset,
+		   tarhdr->size, readoctal(tarhdr->size), tarhdr->name);
+#endif
+	    if (offset >= l) {
+		if (offset > l)
+		    xlseek(fd, offset - l, SEEK_CUR);
+		/* else offset == l */
+		G.bytes_written += offset;
+		break;
+	    }
+	}
+    }
+}
+
+
+
 int main(int argc UU, const char * argv[])
 {
     char buf[4096];
@@ -853,11 +922,12 @@ int main(int argc UU, const char * argv[])
     int uid, gid;
     const char * ifname = null;
     const char * ofname = null;
+    const char * godir = null;
     int out_fd, ifile_fd;
 #ifndef WIN32
     const char ** ppcmdp = null;
 #endif
-    int n;
+    int n, append = 0;
     time_t starttime = time(null);
     time_t ttime;
 
@@ -879,7 +949,9 @@ int main(int argc UU, const char * argv[])
 	    case 'n': G.opt_dry_run = true; break;
 	    case 'V': G.opt_verbose = true; break;
 	    case 'i': ifname = needarg(argv++, "No filename for  -i\n"); break;
+	    case 'a': append = 1; /* fall through */
 	    case 'o': ofname = needarg(argv++, "No filename for  -o\n"); break;
+	    case 'C': godir = needarg(argv++, "No directory for -C\n"); break;
 #ifndef WIN32
 	    case 'z': setppcmdp(&ppcmdp, gzipline); break;
 	    case 'j': setppcmdp(&ppcmdp, bzip2line); break;
@@ -904,11 +976,19 @@ int main(int argc UU, const char * argv[])
 	xerrf("Option -o outfile missing\n");
 #endif
 
+#ifndef WIN32
+    if (append && ppcmdp)
+	xerrf("No compression/postprocessor commands with append mode\n");
+#endif
+
     if (G.opt_dry_run)
 	out_fd = -1;
     else {
 	if (ofname && (ofname[0] != '-' || ofname[1] != '\0'))
-	    out_fd = xopen(ofname, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+	    if (!append)
+		out_fd = xopen(ofname, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+	    else
+		seektolast(out_fd = xopen(ofname, O_RDWR, 0644));
 	else
 	    out_fd = 1;
     }
@@ -919,6 +999,10 @@ int main(int argc UU, const char * argv[])
 	out_fd = run_ppcmd(ppcmdp, out_fd);
     }
 #endif
+
+    if (godir)
+	if (chdir(godir) < 0)
+	    xerrf("Can not change to directory '%s':", godir);
 
     if (ifname)
 	G.stream = xfopen(ifname, "r");
@@ -951,7 +1035,7 @@ int main(int argc UU, const char * argv[])
 	}
 	else {
 	    fsize = 0;
-	    ttime = /*starttime*/ 1234567890;
+	    ttime = starttime /* 1234567890*/;
 	}
 	if (! G.opt_md5sum)
 	    ustar_add(fis.tarfname, fis.perm, uid, gid, fsize, ttime,
@@ -969,6 +1053,7 @@ int main(int argc UU, const char * argv[])
 	}
     }
     if (out_fd >= 0) {
+	writezero512(out_fd);
 	writezero(out_fd, 10240);
 	close(out_fd);
     }
