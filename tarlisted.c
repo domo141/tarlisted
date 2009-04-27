@@ -7,7 +7,7 @@
  #	    All rights reserved
  #
  # Created: Thu Apr 20 19:59:29 EEST 2006 too
- # Last modified: Thu 16 Apr 2009 17:26:54 EEST too
+ # Last modified: Mon 27 Apr 2009 21:18:31 EEST too
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -39,7 +39,7 @@
  #*/
 #endif
 
-#define VERSION "2.72"
+#define VERSION "2.73"
 
 /* example content, run
    sed -n 's/#[:]#//p' <thisfile> | ./tarlisted -V -o test.tar.gz '|' gzip -c
@@ -1020,8 +1020,8 @@ int main(int argc UU, const char * argv[])
 	}
 	if (fis.type == TFT_FILE) {
 	    if (stat(fis.sysfname, &st) < 0) {
-		errf("Stating file '%s' (in line %d) failed:", fis.sysfname, n);
-		continue;
+		xerrf("Stating file '%s' (in line %d) failed:", fis.sysfname,n);
+		/*continue; */
 	    }
 	    if (! S_ISREG(st.st_mode))
 		inputerror("'%s' is not regular file.", fis.sysfname);
