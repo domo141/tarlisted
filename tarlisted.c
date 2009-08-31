@@ -7,7 +7,7 @@
  #	    All rights reserved
  #
  # Created: Thu Apr 20 19:59:29 EEST 2006 too
- # Last modified: Mon 27 Apr 2009 21:18:31 EEST too
+ # Last modified: Mon 31 Aug 2009 21:18:08 EEST too
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -39,16 +39,18 @@
  #*/
 #endif
 
-#define VERSION "2.73"
+#define VERSION "2.81"
 
 /* example content, run
-   sed -n 's/#[:]#//p' <thisfile> | ./tarlisted -V -o test.tar.gz '|' gzip -c
+   sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -o test.tar.gz '|' gzip -c
 
-#:# tarlisted file format 2
+#:# tarlisted file format 3
 #:# 755 root root   . /usr/bin/tarlisted ./tarlisted
 #:# 744 root root   . /usr/man/man1/tarlisted.1 ./tarlisted.1
 #:# 700 too  too    . /tmp/path/to/nowhr /
+#:# only bsd unix
 #:# --- unski unski . /one\ symlink -> /where/ever/u/want/to/go
+#:# all
 #:# === wheel wheel . /one\ hrdlink => /bin/echo
 #:# 666 root  root  . /dev/zero  // c 1 5
 #:# 640 root  disk  . /dev/loop0 // b 7 0
@@ -56,6 +58,7 @@
 #:# tarlisted file end
 
 # lines  "tarlisted file format"  and  "tarlisted file end"  are optional.
+# try also with '-O bsd'...
 */
 
 #include <unistd.h>
@@ -140,6 +143,8 @@ struct {
     bool8 opt_dry_run;
     bool8 opt_verbose;
     bool8 opt_md5sum;
+    char * opt_only;
+    int opt_onlycount;
     char zerobuf[1024];
 } G;
 
@@ -410,7 +415,7 @@ static int writedata(int fd, char * buf, int len)
 /* --- --- */
 
 
-static const char * needarg(const char ** arg, const char * emsg)
+static char * needarg(char ** arg, const char * emsg)
 {
     if (*arg == null)
 	xerrf(emsg);
@@ -477,6 +482,7 @@ static void usage(bool help)
 	  "\t-o: output file (- = stdout)\n"
 #endif
 	  "\t-M: create md5 checksum file instead of tar file\n"
+	  "\t-O: comma-separated list of items for 'only' lines...\n"
 	  "\t-h: help\n"
 	  "\n", fh);
 
@@ -577,6 +583,7 @@ void _setmajmin(char ** toks, int i, int * majorp, int * minorp)
 
 int readfileinfo(char buf[4096], struct fis * fis)
 {
+    int skipping = 0;
     while (1) {
 	char * toks[10];
 	int i;
@@ -599,9 +606,31 @@ int readfileinfo(char buf[4096], struct fis * fis)
 	if (strcmp(toks[0], "tarlisted") == 0) {
 	    if (i == 3 && cmpstrsCS(&toks[1], i-1, "file\0end") == 2)
 		continue;
-	    if (i == 4 && cmpstrsCS(&toks[1], i-1, "file\0format\0002") == 3)
+	    if (i == 4 && cmpstrsCS(&toks[1], i-1, "file\0format\0003") == 3)
 		continue;
 	    inputerror("`tarlisted' line error (unsupported version ?)"); }
+
+	if (strcmp(toks[0], "all") == 0) {
+	    skipping = 0;
+	    continue;
+	}
+	else if (strcmp(toks[0], "only") == 0) {
+	    int j, k;
+	    char * p = G.opt_only;
+	    skipping = 1;
+	    for (j = G.opt_onlycount; j > 0; j--) {
+		for (k = 1; k < i; k++)
+		    if (strcmp(p, toks[k]) == 0) {
+			skipping = 0;
+			j = 0;
+			break;
+		    }
+		p = p + strlen(p) + 1;
+	    }
+	    continue;
+	}
+	if (skipping)
+	    continue;
 
 	if (i >= 6) {
 	    fis->uname = toks[1];
@@ -915,7 +944,7 @@ void seektolast(int fd)
 
 
 
-int main(int argc UU, const char * argv[])
+int main(int argc UU, char * argv[])
 {
     char buf[4096];
     struct fis fis;
@@ -952,6 +981,7 @@ int main(int argc UU, const char * argv[])
 	    case 'a': append = 1; /* fall through */
 	    case 'o': ofname = needarg(argv++, "No filename for  -o\n"); break;
 	    case 'C': godir = needarg(argv++, "No directory for -C\n"); break;
+	    case 'O': G.opt_only = needarg(argv++, "No names -O\n"); break;
 #ifndef WIN32
 	    case 'z': setppcmdp(&ppcmdp, gzipline); break;
 	    case 'j': setppcmdp(&ppcmdp, bzip2line); break;
@@ -968,7 +998,7 @@ int main(int argc UU, const char * argv[])
 	if ( argv[0][0] != '|' || argv[0][1] != '\0' )
 	    errf("%s: unknown argument\n", argv[0]);
 	else
-	    setppcmdp(&ppcmdp, argv + 1);
+	    setppcmdp(&ppcmdp, (const char **)argv + 1);
     } else if (ofname == null)
 	xerrf("Option -o reguired if postprocessor command (with '|') not used\n");
 #else
@@ -980,6 +1010,17 @@ int main(int argc UU, const char * argv[])
     if (append && ppcmdp)
 	xerrf("No compression/postprocessor commands with append mode\n");
 #endif
+
+    if (G.opt_only) {
+	char * p = G.opt_only;
+	while ((p = strchr(p, ',')) != null) {
+	    *p++ = '\0';
+	    if (*p == '\0')
+		break;
+	    G.opt_onlycount++;
+	}
+	G.opt_onlycount++;
+    }
 
     if (G.opt_dry_run)
 	out_fd = -1;

@@ -65,6 +65,9 @@ Compresses archive with gzip. Mutually exclusive with -z and '|'.
 .B -\fIM\fP
 Creates md5 checksum output instead of tar.
 .TP
+.B -\fIO\fP
+Comma-separated list of keywords for 'only' lines. See below.
+.TP
 .B -\fIh\fP
 help
 .TP
@@ -105,11 +108,22 @@ Backspace "\\" must be used when adding [back]spaces to filenames.
 
 Input file may also have lines
 
-    tarlisted file format 2
+    tarlisted file format 3
     tarlisted file end
 
 The first one can be used to request strict format check. The second
 is added for symmetry.
+
+And also:
+
+    only <keyword1>[ <keyword2>[ <keyword3>]]
+    all
+
+These are used for conditional selection of input. If none of the
+-O command line strings match for any of the keywords after \fIonly\fP
+above, the following lines will be excluded, until there is matching
+\fIonly\fP-line, or \fIall\fP-line. \fIAll\fP resets to include all
+following lines.
 
 Output format is POSIX Unix Standard TAR (ustar, IEEE Std 1003.1-1988)
 
@@ -126,8 +140,8 @@ First, just one that shows all supported file types.
   tarlisted file format 2
    755 root root   . /usr/bin/tarlisted ./tarlisted
    700 too  too    . /tmp/path/to/nowhr /
-   --- unski unski . /one\ symlink -> /where/ever
-   === wheel wheel . /one\ hrdlink => /bin/echo
+   --- unski unski . /one\\ symlink -> /where/ever
+   === wheel wheel . /one\\ hrdlink => /bin/echo
    666 root  root  . /dev/zero  // c 1 5
    640 root  disk  . /dev/loop0 // b 7 0
    600 root  root  . /dev/initctl // fifo
