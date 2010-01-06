@@ -7,7 +7,7 @@
  #	    All rights reserved
  #
  # Created: Thu Apr 20 19:59:29 EEST 2006 too
- # Last modified: Mon 31 Aug 2009 21:18:08 EEST too
+ # Last modified: Wed 06 Jan 2010 18:20:25 EET too
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -39,7 +39,7 @@
  #*/
 #endif
 
-#define VERSION "2.81"
+#define VERSION "2.82"
 
 /* example content, run
    sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -o test.tar.gz '|' gzip -c
@@ -470,12 +470,13 @@ static void usage(bool help)
 #endif
 	    , G.progname);
     fputs("\t-n: just check tarlist contents, not doing anything else\n"
-	  "\t-V: verbose output\n"
+	  "\t-V: verbose output. -VV outputs to both stdout and stderr\n"
 	  "\t-C: change to directory for input -- does not affect output\n"
 	  "\t-i: input file, instead of stdin\n"
 #ifndef WIN32
 	  "\t-o: output file (- = stdout); required if '|' not used\n"
-	  "\t-a: append to output file\n"
+	  "\t-a: append to output archive\n"
+	  "\t-A: concatenate to output file\n"
 	  "\t-z: compress archive with gzip (mutually exclusive with -j and '|')\n"
 	  "\t-j: compress archive with bzip2 (mutually exclusive with -z and '|')\n"
 #else
@@ -976,9 +977,10 @@ int main(int argc UU, char * argv[])
 	for (i = 1; arg[i]; i++)
 	    switch(arg[i]) {
 	    case 'n': G.opt_dry_run = true; break;
-	    case 'V': G.opt_verbose = true; break;
+	    case 'V': G.opt_verbose++; break;
 	    case 'i': ifname = needarg(argv++, "No filename for  -i\n"); break;
 	    case 'a': append = 1; /* fall through */
+	    case 'A': if (append == 0) append = -1; /* fall through */
 	    case 'o': ofname = needarg(argv++, "No filename for  -o\n"); break;
 	    case 'C': godir = needarg(argv++, "No directory for -C\n"); break;
 	    case 'O': G.opt_only = needarg(argv++, "No names -O\n"); break;
@@ -1007,7 +1009,7 @@ int main(int argc UU, char * argv[])
 #endif
 
 #ifndef WIN32
-    if (append && ppcmdp)
+    if (append > 0 && ppcmdp)
 	xerrf("No compression/postprocessor commands with append mode\n");
 #endif
 
@@ -1025,13 +1027,18 @@ int main(int argc UU, char * argv[])
     if (G.opt_dry_run)
 	out_fd = -1;
     else {
-	if (ofname && (ofname[0] != '-' || ofname[1] != '\0'))
+	if (ofname && (ofname[0] != '-' || ofname[1] != '\0')) {
 	    if (!append)
 		out_fd = xopen(ofname, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+	    else if (append < 0)
+		out_fd = xopen(ofname, O_WRONLY|O_CREAT|O_APPEND, 0644);
 	    else
 		seektolast(out_fd = xopen(ofname, O_RDWR, 0644));
-	else
+	}
+	else {
+	    if (G.opt_verbose > 1) G.opt_verbose = 1;
 	    out_fd = 1;
+	}
     }
 
 #ifndef WIN32
@@ -1085,8 +1092,11 @@ int main(int argc UU, char * argv[])
 		  fis.uname, fis.gname, fis.devmajor, fis.devminor,
 		  ifile_fd, out_fd);
 
-	if (G.opt_verbose)
+	if (G.opt_verbose) {
 	    fprintf(stderr, "%s\n", fis.tarfname);
+	    if (G.opt_verbose > 1)
+		fprintf(stdout, "%s\n", fis.tarfname);
+	}
 
 	if (ifile_fd) {
 	    close(ifile_fd);
