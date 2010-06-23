@@ -14,24 +14,16 @@ WARN=	$(WARN1) -W -Wwrite-strings -Wcast-qual -Wshadow  # -Wconversion
 
 LFOPT=	-DLARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
 
-TLOBJS=	tarlisted.o md5.o
+TLOBJS=	tarlisted.o
 
-tarlisted: conf.h $(TLOBJS)
+tarlisted: tarlisted.o
 	$(CC) $(LFLAGS) $(WARN) -o $@ $(TLOBJS) $(LFOPT)
-
 
 .c.o:
 	$(CC) $(CFLAGS) $(WARN) -c -o $@ $< $(LFOPT)
 
-md5.o: md5.h conf.h 
-
-
-conf.h:	genconf.sh Makefile
-	sh genconf.sh $(CC) $(LFOPT)
-
 test:	tarlisted
 	sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -zo test.tar.gz
-	sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -Mo test.md5sum
 
 #FIXME more tests.
 
@@ -65,29 +57,21 @@ GitLog: ALWAYS #SvnVersion_unmodified #ALWAYS #$(FILES)
 targz: tarlisted GitLog
 	sed -n '/^targz.sh:/,/^ *$$/ p' Makefile | tail -n +3 | sh -ve #-nv
 
-bindeb: tarlisted GitLog
-	sed -n '/^bindeb.sh:/,/^ *$$/ p' Makefile | tail -n +3 | sh -ve #-nv
-
-
 clean: ALWAYS
-	rm -f tarlisted *.o conf.h test.* GitLog *~ 
+	rm -f tarlisted *.o test.* GitLog *~ 
 
 distclean: clean
 
-
+# Note: this goal does not cross-compile.
 targz.sh:
 	exit 1 # this target is not to be run.
 	version=`sed -n 's/^#define VERSION "//; T; s/".*//p; q;' tarlisted.c`
-	for n in tarlisted.c md5.c md5.h genconf.sh tarlisted.1 Makefile GitLog
+	for n in tarlisted.c tarlisted.1 Makefile GitLog
 	do
 		echo 644 root root . tarlisted-$version/$n $n
 	done | ./tarlisted -V -zo tarlisted-$version.tar.gz
 	set +e
 	echo Created tarlisted-$version.tar.gz
 	exit 0
-
-bindeb.sh:
-	exit 1 # this target is not to be run.
-	echo to be done
 
 #EOF

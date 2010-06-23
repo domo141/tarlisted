@@ -7,7 +7,7 @@
  #	    All rights reserved
  #
  # Created: Thu Apr 20 19:59:29 EEST 2006 too
- # Last modified: Wed 06 Jan 2010 18:20:25 EET too
+ # Last modified: Wed 23 Jun 2010 19:08:39 EEST too
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -39,7 +39,7 @@
  #*/
 #endif
 
-#define VERSION "2.82"
+#define VERSION "3.0"
 
 /* example content, run
    sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -o test.tar.gz '|' gzip -c
@@ -81,15 +81,6 @@
 #include <grp.h>
 #endif
 
-#include "md5.h"
-
-#include "conf.h"
-#ifdef WIN32
-#if __SIZEOF_OFF_T != 4
-#error Unexpected OFF_T size on WIN32 build
-#endif
-#endif
-
 #define null ((void*)0)
 typedef enum { false = 0, true = 1 } bool; typedef char bool8;
 
@@ -113,20 +104,12 @@ typedef enum { false = 0, true = 1 } bool; typedef char bool8;
 #define GCCATTR_UNUSED   __attribute__ ((unused))
 #define GCCATTR_CONST    __attribute__ ((const))
 
-#define S2U(v, t, i, o)	\
-    __builtin_choose_expr (__builtin_types_compatible_p \
-			   (typeof (v), t i), ((unsigned t o)(v)), (void)0)
-#define U2S(v, t, i, o)	\
-    __builtin_choose_expr (__builtin_types_compatible_p	\
-			   (typeof (v), unsigned t i), ((t o)(v)), (void)0)
 #else
 #define GCCATTR_PRINTF(m, n)
 #define GCCATTR_NORETURN
 #define GCCATTR_UNUSED
 #define GCCATTR_CONST
 
-#define S2U(v, t, i, o) ((unsigned t o)(v))
-#define U2S(v, t, i, o) ((t o)(v))
 #endif
 
 #define UU GCCATTR_UNUSED /* convenience macro */
@@ -142,7 +125,6 @@ struct {
     int exitvalue;
     bool8 opt_dry_run;
     bool8 opt_verbose;
-    bool8 opt_md5sum;
     char * opt_only;
     int opt_onlycount;
     char zerobuf[1024];
@@ -377,11 +359,11 @@ int toktest()
 
 /* --- --- */
 
-static void writezero512(int fd)
+static void writezero1024(int fd)
 {
-    if (write(fd, G.zerobuf, 512) != 512)
-	xerrf("writa failed:");
-    G.bytes_written += 512;
+    if (write(fd, G.zerobuf, 1024) != 1024)
+	xerrf("write failed:");
+    G.bytes_written += 1024;
 }
 
 /* static void writezero(int fd, int(*writefunc)(int, char *, int)) */
@@ -396,7 +378,7 @@ static void writezero(int fd, int byteboundary)
 	while (nw) {
 	    i = (nw > sizeof G.zerobuf? sizeof G.zerobuf: nw);
 	    /* writefunc(fd, buf, i); */
-	    if (write(fd, G.zerobuf, i) != U2S(i, int,,) )
+	    if (write(fd, G.zerobuf, i) != (int)i )
 		xerrf("write failed:");
 	    nw -= i;
 	    G.bytes_written += i;
@@ -437,7 +419,7 @@ static const char helptxt2[] =
     "\tperm:         file permission in octal number format.\n"
     "\tuname:        name of the user this file is owned.\n"
     "\tgname:        name of the group this file belongs.\n"
-    "\t`.':          future extension for time...\n"
+    "\t'.':          future extension for time...\n"
     "\ttarfilename:  name of the file that is written to the tar archive.\n\n"
     "\tsysfilename:  file to be added from filesystem.\n"
     "\t/:            add directory to the tar archive.\n"
@@ -468,11 +450,11 @@ static void usage(bool help)
 #else
 	    "Usage: %s [-nVh] [-C dir] [-i infile] (-o|-a) outfile\n\n"
 #endif
+	    "\t-n: just check tarlist contents, not doing anything else\n"
+	    "\t-V: verbose output. -VV outputs to both stdout and stderr\n"
+	    "\t-C: change to directory for input -- does not affect output\n"
 	    , G.progname);
-    fputs("\t-n: just check tarlist contents, not doing anything else\n"
-	  "\t-V: verbose output. -VV outputs to both stdout and stderr\n"
-	  "\t-C: change to directory for input -- does not affect output\n"
-	  "\t-i: input file, instead of stdin\n"
+    fputs("\t-i: input file, instead of stdin\n"
 #ifndef WIN32
 	  "\t-o: output file (- = stdout); required if '|' not used\n"
 	  "\t-a: append to output archive\n"
@@ -482,7 +464,6 @@ static void usage(bool help)
 #else
 	  "\t-o: output file (- = stdout)\n"
 #endif
-	  "\t-M: create md5 checksum file instead of tar file\n"
 	  "\t-O: comma-separated list of items for 'only' lines...\n"
 	  "\t-h: help\n"
 	  "\n", fh);
@@ -752,7 +733,7 @@ void ustar_add(char * name, int mode, int uid, int gid, off_t fsize,
 #ifndef WIN32
     /* FIXME, check LARGEFILE... */
     if (sizeof fsize > 4 && fsize >= (1LL << 33)) /* 8 ** 11 */
-	inputerror("File size %lld too big.", fsize);
+	inputerror("File size %lld too large.", fsize);
 #endif /* XXX can not check size if off_t is 32 bits wide */
 
     if (output_fd < 0)
@@ -813,34 +794,6 @@ void ustar_add(char * name, int mode, int uid, int gid, off_t fsize,
     writezero(output_fd, 512);
 }
 
-void md5sum_add(char * name, unsigned int fsize, int input_fd, int output_fd)
-{
-    struct MD5Context ctx;
-    unsigned char buf[4096];
-#define char_buf (char *)buf
-
-    MD5Init(&ctx);
-
-    while (fsize > 0) {
-	unsigned int l;
-
-	l = (fsize > sizeof buf)? sizeof buf: fsize;
-	if ((l = read(input_fd, buf, l)) > 0) {
-	    MD5Update(&ctx, buf, l);
-	    fsize -= l;
-	}
-	else
-	    xerrf("read failed:");
-    }
-    MD5Final(buf, &ctx);
-
-    sprintf(char_buf + 100,
-	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x"
-	    "  %s\n", buf[0], buf[1], buf[2], buf[3], buf[4],
-	    buf[5], buf[6], buf[7], buf[8], buf[9], buf[10],
-	    buf[11], buf[12], buf[13], buf[14], buf[15], name);
-    write(output_fd, buf + 100, strlen(char_buf + 100));
-}
 
 /* --- --- */
 
@@ -857,7 +810,8 @@ static int run_ppcmd(const char ** argv, int out_fd)
 	movefd(out_fd, 1);
 	movefd(fds[0], 0);
 
-	execvp(argv[0], argv); /*well, does execve() possibly alter arg content?*/
+	/* XXX well, does execve() possibly alter arg content? */
+	execvp(argv[0], (char **)argv);
 	xerrf("execvp:");
     }
     /* parent */
@@ -988,7 +942,6 @@ int main(int argc UU, char * argv[])
 	    case 'z': setppcmdp(&ppcmdp, gzipline); break;
 	    case 'j': setppcmdp(&ppcmdp, bzip2line); break;
 #endif
-	    case 'M': G.opt_md5sum = true; break;
 	    case 'h': usage(true); break;
 	    default:
 		errf("%c: unknown option\n", arg[i]);
@@ -1078,15 +1031,12 @@ int main(int argc UU, char * argv[])
 	    fsize = st.st_size;
 	    ttime = st.st_mtime;
 
-	    if (G.opt_md5sum)
-		md5sum_add(fis.tarfname, fsize, ifile_fd, out_fd);
 	}
 	else {
 	    fsize = 0;
 	    ttime = starttime /* 1234567890*/;
 	}
-	if (! G.opt_md5sum)
-	    ustar_add(fis.tarfname, fis.perm, uid, gid, fsize, ttime,
+	ustar_add(fis.tarfname, fis.perm, uid, gid, fsize, ttime,
 		  fis.type, (fis.type == TFT_LINK || fis.type == TFT_SYMLINK)?
 		  /*            */ fis.sysfname: 0,
 		  fis.uname, fis.gname, fis.devmajor, fis.devminor,
@@ -1104,7 +1054,7 @@ int main(int argc UU, char * argv[])
 	}
     }
     if (out_fd >= 0) {
-	writezero512(out_fd);
+	writezero1024(out_fd);
 	writezero(out_fd, 10240);
 	close(out_fd);
     }

@@ -16,14 +16,14 @@
 .\"      products derived from this software without specific prior
 .\"      written permission.
 
-.TH tarlisted 1 "Mar 12, 2009"
+.TH tarlisted 1 "Jun 23, 2010"
 
 .SH NAME
 tarlisted \- Create tar archive based on description list contents
 
 .SH SYNOPSIS
 .B tarlisted 
-.I [-nVhzj] [-i infile] [(-o|-a) outfile] [| ppcmd [args]]
+.I [-nVhzj] [-C dir] [-i infile] [(-o|-a) outfile] [| ppcmd [args]]
 .br
 
 .SH DESCRIPTION
@@ -45,6 +45,9 @@ Just check tarlist contents, not doing anything else.
 .TP
 .B -\fIV\fP
 Verbose output.
+.TP
+.B -\fIC\fP
+Change to directory for input -- does not affect output
 .TP
 .B -\fIi\fP
 Defines input file, instead of stdin.
@@ -137,7 +140,7 @@ with nonzero value.
 First, just one that shows all supported file types.
 
   $ ./tarlisted -o test.tar << EOF
-  tarlisted file format 2
+  tarlisted file format 3
    755 root root   . /usr/bin/tarlisted ./tarlisted
    700 too  too    . /tmp/path/to/nowhr /
    --- unski unski . /one\\ symlink -> /where/ever
@@ -209,7 +212,7 @@ support long filenames when necessary. \" option -x to enable
 Plan and implement "modification time" setting.
 
 .SH AUTHOR
-written by Tomi Ollila
+Tomi Ollila
 
 .SH COPYRIGHT
 
