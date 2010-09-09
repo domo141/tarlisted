@@ -7,7 +7,7 @@
  #	    All rights reserved
  #
  # Created: Thu Apr 20 19:59:29 EEST 2006 too
- # Last modified: Wed 23 Jun 2010 19:08:39 EEST too
+ # Last modified: Thu 09 Sep 2010 19:17:14 EEST too
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -39,7 +39,7 @@
  #*/
 #endif
 
-#define VERSION "3.0"
+#define VERSION "3.1"
 
 /* example content, run
    sed -n 's/#[:]#//p' tarlisted.c | ./tarlisted -V -o test.tar.gz '|' gzip -c
@@ -596,7 +596,12 @@ int readfileinfo(char buf[4096], struct fis * fis)
 	    skipping = 0;
 	    continue;
 	}
-	else if (strcmp(toks[0], "only") == 0) {
+	/* but where is 'else only'? therefore non-documented */
+	else if (strcmp(toks[0], "else") == 0) {
+	    skipping = !skipping;
+	    continue;
+	}
+ 	else if (strcmp(toks[0], "only") == 0) {
 	    int j, k;
 	    char * p = G.opt_only;
 	    skipping = 1;
@@ -722,7 +727,7 @@ void ustar_add(char * name, int mode, int uid, int gid, off_t fsize,
     l = strlen(name);
     if (l > 99) {
 	char * p;
-	for (p = name + 154; p > name; p--)
+	for (p = (l > 154)? (name + 154): (name + l - 1); p > name; p--)
 	    if (*p == '/')
 		break;
 	if (l - (p - name) > 99)
@@ -741,8 +746,8 @@ void ustar_add(char * name, int mode, int uid, int gid, off_t fsize,
 
     /* the 2 strcpys below may write one extra '\0' but that doesn't matter */
     if (preflen) {
-	memcpy(header.prefix, name, preflen - 1);
-	strcpy(header.name, name + preflen); }
+	memcpy(header.prefix, name, preflen);
+	strcpy(header.name, name + preflen + 1); }
     else
 	strcpy(header.name, name);
 
@@ -1048,7 +1053,7 @@ int main(int argc UU, char * argv[])
 		fprintf(stdout, "%s\n", fis.tarfname);
 	}
 
-	if (ifile_fd) {
+	if (ifile_fd >= 0) {
 	    close(ifile_fd);
 	    ifile_fd = -1;
 	}

@@ -5,7 +5,7 @@ all:	tarlisted
 
 CC=gcc
 
-CFLAGS=	-O2
+CFLAGS=	-O2 #-fstack-protector-all
 LFLAGS=	-s
 
 WARN0=	-Wall -Wstrict-prototypes -pedantic -Wno-long-long
@@ -17,9 +17,9 @@ LFOPT=	-DLARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
 TLOBJS=	tarlisted.o
 
 tarlisted: tarlisted.o
-	$(CC) $(LFLAGS) $(WARN) -o $@ $(TLOBJS) $(LFOPT)
+	$(CC) $(LFLAGS) -o $@ $(TLOBJS) $(LFOPT)
 
-.c.o:
+tarlisted.o: tarlisted.c Makefile
 	$(CC) $(CFLAGS) $(WARN) -c -o $@ $< $(LFOPT)
 
 test:	tarlisted
