@@ -12,7 +12,7 @@ WARN0=	-Wall -Wstrict-prototypes -pedantic -Wno-long-long
 WARN1=	$(WARN0) -Wcast-align -Wpointer-arith  # -Wfloat-equal #-Werror
 WARN=	$(WARN1) -W -Wwrite-strings -Wcast-qual -Wshadow  # -Wconversion
 
-LFOPT=	-DLARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
+LFOPT=	-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
 
 TLOBJS=	tarlisted.o
 
