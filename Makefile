@@ -55,16 +55,12 @@ GitLog: ALWAYS #SvnVersion_unmodified #ALWAYS #$(FILES)
 	git log --name-status > $@
 
 targz: tarlisted GitLog
-	sed -n '/^targz.sh:/,/^ *$$/ p' Makefile | tail -n +3 | sh -ve #-nv
-
-clean: ALWAYS
-	rm -f tarlisted *.o test.* GitLog *~ 
-
-distclean: clean
+	sed '1,/^$@.sh:/d;/^#.#eos/q' Makefile | sh -s yes
 
 # Note: this goal does not cross-compile.
 targz.sh:
-	exit 1 # this target is not to be run.
+	test -n "$1" || exit 1 # internal shell script; not to be made directly
+	set -eu
 	version=`sed -n 's/^#define VERSION "//; T; s/".*//p; q;' tarlisted.c`
 	for n in tarlisted.c tarlisted.1 Makefile GitLog
 	do
@@ -72,6 +68,35 @@ targz.sh:
 	done | ./tarlisted -V -zo tarlisted-$version.tar.gz
 	set +e
 	echo Created tarlisted-$version.tar.gz
-	exit 0
+#	#eos
+	exit 1 # not reached
 
-#EOF
+webpage:
+	sed '1,/^$@.sh:/d;/^#.#eos/q' Makefile | sh -s yes
+	@echo check date in tarlisted.1 separately
+	@echo Update freshmeat and linuxlinks '(+sourcefiles)'
+
+webpage.sh:
+	test -n "$1" || exit 1 # internal shell script; not to be made directly
+	set -eu
+	GROFF_NO_SGR=1 TERM=vt100; export GROFF_NO_SGR TERM
+	exec >README.html
+	echo '<hr/>'
+	echo '<pre>'
+	groff -man -T latin1 tarlisted.1 | perl -e '
+	my %htmlqh = qw/& &amp;   < &lt;   > &gt;   '\'' &apos;   " &quot;/;
+	sub htmlquote($) { $_[0] =~ s/([&<>'\''"])/$htmlqh{$1}/ge; }
+	while (<>) { htmlquote $_; s/[_&]\010&/&/g;
+		s/((?:_\010[^_])+)/<u>$1<\/u>/g; s/_\010(.)/$1/g;
+		s/((?:.\010.)+)/<b>$1<\/b>/g; s/.\010(.)/$1/g; print $_; }'
+	echo '</pre>'
+	exec > /dev/null
+#	#eos
+	exit 1 # not reached
+
+clean: ALWAYS
+	rm -f tarlisted *.o test.* GitLog *~
+
+distclean: clean
+
+.SUFFIXES:

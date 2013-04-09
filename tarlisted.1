@@ -16,68 +16,71 @@
 .\"      products derived from this software without specific prior
 .\"      written permission.
 
-.TH tarlisted 1 "Jun 23, 2010"
+.TH tarlisted 1 "Sep 25, 2012" "tarlisted 3.2" "User Commands"
 
 .SH NAME
 tarlisted \- Create tar archive based on description list contents
 
 .SH SYNOPSIS
-.B tarlisted 
+.B tarlisted
 .I [-nVhzj] [-C dir] [-i infile] [(-o|-a) outfile] [| ppcmd [args]]
 .br
 
 .SH DESCRIPTION
 
 \fBTarlisted\fP takes lines of text as an input and creates tar archive
-based on that information.  
+based on that information.
 
 Each line contains permission, user, group and pathname that are to
 be written in header part of the tar entry. In addition to that, at
 the end of line the syntax varies depending the file type archived.
 For example in case of reqular files the filename where file content
-is read is added. Tarlisted creates POSIX.1-1998 tar file format 
+is read is added. Tarlisted creates POSIX.1-1998 tar file format
 (only) and can archive all the (seven) file types it supports.
 
 .SH OPTIONS
-.TP
+.TP 4
 .B -\fIn\fP
-Just check tarlist contents, not doing anything else.
-.TP
+Just check tarlist contents, not doing anything else
+.TP 4
 .B -\fIV\fP
-Verbose output.
-.TP
+Verbose output. -VV: output to both stdout and stderr
+.TP 4
 .B -\fIC\fP
 Change to directory for input -- does not affect output
-.TP
+.TP 4
 .B -\fIi\fP
-Defines input file, instead of stdin.
-.TP
+Defines input file, instead of stdin
+.TP 4
 .B -\fIo\fP
 Defines output file, instead of stdout. Required if '|' not used.
-Giving - will use stdout anyway (if there is need for it).
-.TP
+Giving - will use stdout anyway (if there is need for it)
+.TP 4
 .B -\fIa\fP
-Appends to output file. No compression nor postprosessing appicable.
-.TP
+Appends to output file. No compression nor postprosessing appicable
+.TP 4
 .B -\fIz\fP
-Compresses archive with gzip. Mutually exclusive with -j and '|'.
-.TP
+Compresses archive with gzip. Mutually exclusive with -j, -J and '|'
+.TP 4
+.B -\fIJ\fP
+Compresses archive with xz. Mutually exclusive with -z, -j and '|'
+.TP 4
 .B -\fIj\fP
-Compresses archive with gzip. Mutually exclusive with -z and '|'.
-.TP
+Compresses archive with bzip2. Mutually exclusive with -z, -J and '|'
+.TP 4
 .B -\fIM\fP
-Creates md5 checksum output instead of tar.
-.TP
+Creates md5 checksum output instead of tar
+.TP 4
 .B -\fIO\fP
-Comma-separated list of keywords for 'only' lines. See below.
-.TP
+Comma-separated list of keywords for 'only' lines. See below
+.TP 4
 .B -\fIh\fP
 help
-.TP
+.TP 4
 .B \fI| ppcmd [args]\fP
-Internal piping to postprocess command. Archive output will be sent 
+Internal piping to postprocess command. Archive output will be sent
 to this program for further use. Also, if postprocess
-command returns nonzero value, tarlisted will exit with value 1.
+command returns nonzero value, tarlisted will exit with value 1
 
 .SH SYNTAX
 
@@ -151,7 +154,7 @@ First, just one that shows all supported file types.
   tarlisted file end
   EOF
 
-The above created test.tar with content: 
+The above created test.tar with content:
 
   $ tar tvf test.tar
   -rwxr-xr-x root/root  12453 2006-04-25 00:41:48 usr/bin/tarlisted
@@ -173,7 +176,7 @@ I.e. the only file in tarlist was md5summed for output.
 Another to install perl4 (compiled from 4.0.36) (using installed tarlisted).
 
   $ PREFIX=/usr
-  $ tarlisted '|' tar -C $PREFIX -xvf - << EOF 
+  $ tarlisted '|' tar -C $PREFIX -xvf - << EOF
    755 root root . bin/perl4 src/perl
    644 root root . man/man1/perl4.1 src/perl.man
   EOF
@@ -181,20 +184,20 @@ Another to install perl4 (compiled from 4.0.36) (using installed tarlisted).
   or, the above with same result:
 
   $ PREFIX=/usr
-  $ tarlisted '|' tar -C / -xvf - << EOF 
+  $ tarlisted '|' tar -C / -xvf - << EOF
    755 root root . $PREFIX/bin/perl4 src/perl
    644 root root . $PREFIX/man/man1/perl4.1 src/perl.man
   EOF
 
-Finally, compress on the fly with bzip2
+Finally, compress on the fly with xz
 
   $ echo 755 root root . /usr/bin/tarlisted tarlisted \\
-    | ./tarlisted -o tl.tar.bz2 '|' bzip -c
+    | ./tarlisted -o tl.tar.xz '|' xz -c
 
-Same with tarlisted 2.2 (or newer)
+Same with tarlisted 3.2 (or newer)
 
   $ echo 755 root root . /usr/bin/tarlisted tarlisted \\
-    | ./tarlisted -jo tl.tar.bz2
+    | ./tarlisted -Jo tl.tar.xz
 
 .SH CAVEAT
 
@@ -206,7 +209,7 @@ without -o now if '|' is not used.
 
 .SH TODO
 
-Add features from latest POSIX tar specifications to 
+Add features from latest POSIX tar specifications to
 support long filenames when necessary. \" option -x to enable
 
 Plan and implement "modification time" setting.
@@ -219,7 +222,7 @@ Tomi Ollila
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions
  are met:
- 
+
  1. Redistributions of source code must retain the above copyright
     notice, this list of conditions and the following disclaimer.
  2. Redistributions in binary form must reproduce the above copyright
@@ -229,11 +232,11 @@ Tomi Ollila
  4. The names of the authors may not be used to endorse or promote
     products derived from this software without specific prior
     written permission.
- 
+
  THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
  IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-   
+
 
 .SH SEE ALSO
 .PD 0
