@@ -68,9 +68,6 @@ Compresses archive with xz. Mutually exclusive with -z, -j and '|'
 .B -\fIj\fP
 Compresses archive with bzip2. Mutually exclusive with -z, -J and '|'
 .TP 4
-.B -\fIM\fP
-Creates md5 checksum output instead of tar
-.TP 4
 .B -\fIO\fP
 Comma-separated list of keywords for 'only' lines. See below
 .TP 4
@@ -139,7 +136,7 @@ tarlisted exits with 0 if everything goes ok. On failure it might exit
 with nonzero value.
 
 .SH EXAMPLES
-
+.nf
 First, just one that shows all supported file types.
 
   $ ./tarlisted -o test.tar << EOF
@@ -165,14 +162,6 @@ The above created test.tar with content:
   brw-r----- root/disk    7,0 2006-04-25 00:42:53 dev/loop0
   prw------- root/root      0 2006-04-25 00:42:53 dev/initctl
 
-If -M were given on above command line, the output would look like:
-
-  $ cat test.tar
-  b4118203da5d3829c62e468b67972615  usr/bin/tarlisted
-
-I.e. the only file in tarlist was md5summed for output.
-(I suggest changing ending to something like .md5sum instead)
-
 Another to install perl4 (compiled from 4.0.36) (using installed tarlisted).
 
   $ PREFIX=/usr
@@ -191,14 +180,12 @@ Another to install perl4 (compiled from 4.0.36) (using installed tarlisted).
 
 Finally, compress on the fly with xz
 
-  $ echo 755 root root . /usr/bin/tarlisted tarlisted \\
-    | ./tarlisted -o tl.tar.xz '|' xz -c
+  $ echo 755 root root . /usr/bin/tarlisted tarlisted | ./tarlisted -o tl.tar.xz '|' xz -c
 
 Same with tarlisted 3.2 (or newer)
 
-  $ echo 755 root root . /usr/bin/tarlisted tarlisted \\
-    | ./tarlisted -Jo tl.tar.xz
-
+  $ echo 755 root root . /usr/bin/tarlisted tarlisted | ./tarlisted -Jo tl.tar.xz
+.fi
 .SH CAVEAT
 
 Remember to escape | from shell when using the internal pipeline
