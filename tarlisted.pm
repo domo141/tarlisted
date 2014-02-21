@@ -8,7 +8,7 @@
 #	    All rights reserved
 #
 # Created: Fri 06 Dec 2013 14:30:05 EET too
-# Last modified: Wed 12 Feb 2014 21:19:36 +0200 too
+# Last modified: Fri 21 Feb 2014 22:39:27 +0200 too
 
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -209,8 +209,7 @@ sub tarlisted_stat($)
 }
 
 # string name perm mtime uid gid [uname gname]
-#sub tarlisted_cpstr($$$;$$$@)
-sub tarlisted_cpstr($$$@)
+sub tarlisted_cpstr($$$$$$@)
 {
     my $uname = defined $_[6]? $_[6]: getpwuid $_[4];
     my $gname = defined $_[7]? $_[7]: getgrgid $_[5];
