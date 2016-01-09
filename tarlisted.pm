@@ -8,7 +8,7 @@
 #	    All rights reserved
 #
 # Created: Fri 06 Dec 2013 14:30:05 EET too
-# Last modified: Fri 21 Feb 2014 22:39:27 +0200 too
+# Last modified: Sat 09 Jan 2016 11:36:37 +0200 too
 
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -59,7 +59,7 @@ use strict;
 use warnings;
 use bytes;
 
-my $_tarlisted_pid = -1;
+my $_tarlisted_pid;
 
 
 sub _tarlisted_pipetocmd(@)
@@ -85,6 +85,7 @@ sub _tarlisted_pipetocmd(@)
 
 
 # IEEE Std 1003.1-1988 (“POSIX.1”) ustar format
+# name perm uid gid size mtime type lname uname gname
 sub _tarlisted_mkhdr($$$$$$$$$$)
 {
     if (length($_[7]) > 99) {
@@ -208,6 +209,7 @@ sub tarlisted_stat($)
     return ( $mode & 0777, $mtime, $uid, $gid, getpwuid $uid, getgrgid $gid );
 }
 
+
 # string name perm mtime uid gid [uname gname]
 sub tarlisted_cpstr($$$$$$@)
 {
@@ -221,6 +223,7 @@ sub tarlisted_cpstr($$$$$$@)
     $_tarlisted_wb += $len;
     _tarlisted_addpad;
 }
+
 
 # dir perm mtime uid gid [uname gname]
 sub tarlisted_mkdir($$$$$@)
@@ -236,7 +239,7 @@ sub tarlisted_mkdir($$$$$@)
 
 sub tarlisted_open($@)
 {
-    die "tarlisted alreadly open\n" if $_tarlisted_pid >= 0;
+    die "tarlisted alreadly open\n" if defined $_tarlisted_pid;
     $_tarlisted_pid = 0;
     if ($_[0] eq '-') {
 	open TARLISTED, '>&STDOUT' or die "dup stdout: $!\n";
@@ -262,7 +265,7 @@ sub tarlisted_close()
     }
     close TARLISTED;
     waitpid $_tarlisted_pid, 0 if $_tarlisted_pid;
-    $_tarlisted_pid = -1;
+    undef $_tarlisted_pid;
     return $?;
 }
 
